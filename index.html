@@ -783,11 +783,19 @@
             const dist = this.mesh.position.distanceTo(game.player.mesh.position);
             if(this.subType === 'gunner' && dist < 35) move = false;
             if(move) { this.velocity.lerp(dir.multiplyScalar(this.speed), 4*dt); super.update(dt); }
+            
+            // Shooting Logic
             this.shootTimer -= dt;
             if(this.shootTimer <= 0 && dist < 40) {
-                let color = this.subType === 'gunner' ? 0xffff00 : 0xff0000;
-                game.entities.push(new Bullet(this.mesh.position.clone().add(new THREE.Vector3(0,1.5,0)), dir, 50, color, 'enemy'));
-                this.shootTimer = this.subType === 'gunner' ? 0.5 : 2.0;
+                // Red enemies (standard) do not shoot anymore
+                if (this.subType !== 'standard') {
+                    let color = this.subType === 'gunner' ? 0xffff00 : 0xff0000;
+                    // Red bullets (Heavy enemies) go slower (25 instead of 50)
+                    let speed = this.subType === 'gunner' ? 50 : 25; 
+                    
+                    game.entities.push(new Bullet(this.mesh.position.clone().add(new THREE.Vector3(0,1.5,0)), dir, speed, color, 'enemy'));
+                    this.shootTimer = this.subType === 'gunner' ? 0.5 : 2.0;
+                }
             }
         }
     }
