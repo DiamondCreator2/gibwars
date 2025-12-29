@@ -6,52 +6,6 @@
     <title>GIBWARS 3D - Mobile Multiplayer</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     
-    <!-- Firebase Imports -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, onSnapshot, query, where, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        window.initFirebase = async () => {
-            try {
-                // Your web app's Firebase configuration
-                const firebaseConfig = {
-                  apiKey: "AIzaSyBuEYlH4Wp2s8Y9BnsDXLDVnCBCu6soAx4",
-                  authDomain: "gibwarsbackend.firebaseapp.com",
-                  projectId: "gibwarsbackend",
-                  storageBucket: "gibwarsbackend.firebasestorage.app",
-                  messagingSenderId: "370416935948",
-                  appId: "1:370416935948:web:f4c649d465b312419a3a29",
-                  measurementId: "G-H8FQXR6VBL"
-                };
-
-                const app = initializeApp(firebaseConfig);
-                const auth = getAuth(app);
-                const db = getFirestore(app);
-                
-                const appId = "gibwars-game-v1"; 
-                
-                window.db = db;
-                window.auth = auth;
-                window.appId = appId;
-                
-                await signInAnonymously(auth);
-
-                return new Promise(resolve => {
-                    const unsub = onAuthStateChanged(auth, (user) => {
-                        if (user) {
-                            window.currentUser = user;
-                            resolve(user);
-                        }
-                    });
-                });
-            } catch (e) {
-                console.error("Firebase init failed:", e);
-                return null;
-            }
-        };
-    </script>
-
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@400;700&display=swap');
 
@@ -412,7 +366,11 @@
     <button class="btn" onclick="startGame()">RESPAWN</button>
 </div>
 
-<script>
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, doc, setDoc, onSnapshot, query, where, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
     // --- Setup Globals ---
     let db, auth, appId, currentUser;
     let remotePlayers = {};
@@ -523,15 +481,16 @@
     (async () => {
         let connected = false;
 
-        const enableOfflineMode = () => {
+        const enableOfflineMode = (reason) => {
             if (connected) return; // Already connected, ignore fallback
-            console.warn("Falling back to Offline Mode");
+            console.warn("Falling back to Offline Mode. Reason:", reason);
             startBtn.innerText = "DEPLOY TANK (OFFLINE)";
             startBtn.disabled = false;
-            statusDiv.innerText = "Mode: Offline";
+            statusDiv.innerText = "Mode: Offline (" + reason + ")";
             statusDiv.style.color = "#ffaa00";
             
             // Mock empty Firebase functions so game doesn't crash
+            // We use no-ops for offline
             window.doc = () => {};
             window.setDoc = async () => {};
             window.onSnapshot = () => {};
@@ -539,35 +498,57 @@
             window.deleteDoc = async () => {};
         };
 
-        // Set a timeout: If not connected in 4 seconds, force offline mode
-        setTimeout(enableOfflineMode, 4000);
+        // Set a timeout: If not connected in 8 seconds, force offline mode
+        const fallbackTimer = setTimeout(() => enableOfflineMode("Timeout"), 8000);
 
-        if (window.initFirebase) {
-            try {
-                const user = await window.initFirebase();
+        try {
+            statusDiv.innerText = "Connecting to Firebase...";
+            
+            // Your web app's Firebase configuration
+            const firebaseConfig = {
+              apiKey: "AIzaSyBuEYlH4Wp2s8Y9BnsDXLDVnCBCu6soAx4",
+              authDomain: "gibwarsbackend.firebaseapp.com",
+              projectId: "gibwarsbackend",
+              storageBucket: "gibwarsbackend.firebasestorage.app",
+              messagingSenderId: "370416935948",
+              appId: "1:370416935948:web:f4c649d465b312419a3a29",
+              measurementId: "G-H8FQXR6VBL"
+            };
+
+            const app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+            appId = "gibwars-game-v1"; 
+            
+            // Expose globally for game logic use if needed
+            window.db = db;
+            window.auth = auth;
+            window.appId = appId;
+            window.doc = doc;
+            window.setDoc = setDoc;
+            window.onSnapshot = onSnapshot;
+            window.collection = collection;
+            window.deleteDoc = deleteDoc;
+
+            await signInAnonymously(auth);
+
+            onAuthStateChanged(auth, (user) => {
                 if (user) {
-                    const mod = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
-                    window.doc = mod.doc;
-                    window.setDoc = mod.setDoc;
-                    window.onSnapshot = mod.onSnapshot;
-                    window.collection = mod.collection;
-                    window.deleteDoc = mod.deleteDoc; 
-                    
+                    window.currentUser = user;
                     connected = true;
+                    clearTimeout(fallbackTimer); // Clear the fallback timer
+                    
                     startBtn.innerText = "DEPLOY TANK";
                     startBtn.disabled = false;
                     statusDiv.innerText = "Online | User: " + user.uid.slice(0, 4);
                     statusDiv.style.color = "#00ff00";
                     console.log("Connected as " + user.uid);
-                } else {
-                    enableOfflineMode();
                 }
-            } catch (e) {
-                console.error("Connection error:", e);
-                enableOfflineMode();
-            }
-        } else {
-            enableOfflineMode();
+            });
+
+        } catch (e) {
+            console.error("Connection error:", e);
+            enableOfflineMode("Error");
         }
     })();
 
@@ -724,7 +705,6 @@
         }
     }
 
-    // Reuse other classes (Pet, RemotePlayer, Enemy, Bullet, Loot, Particle) exactly as they were
     class Pet extends Entity {
         constructor(player) {
             const group = new THREE.Group();
@@ -976,6 +956,7 @@
     // --- Main Game Logic ---
     function initGame() {
         game.entities.forEach(e => scene.remove(e.mesh));
+        // Removed game.particles array - now everything is an entity
         for(let uid in remotePlayers) remotePlayers[uid].destroy();
         remotePlayers = {};
         
@@ -1087,8 +1068,11 @@
 
             if (Math.random() < 0.015 * (1 + game.wave * 0.1)) spawnEnemy();
 
+            // Update Entities (Includes particles now)
             game.entities.forEach(e => e.update(dt));
             
+            // Removed separate particles filter loop as it was causing the bug
+
             const bullets = game.entities.filter(e => e.type === 'bullet');
             const enemies = game.entities.filter(e => e.type === 'enemy');
             const lootItems = game.entities.filter(e => e.type === 'loot');
@@ -1184,14 +1168,15 @@
         document.getElementById('ammo-shotgun').innerText = game.player.ammo['shotgun'];
     }
 
-    function startGame() {
+    // Attach to window so HTML buttons can call them
+    window.startGame = function() {
         if (!startBtn.disabled) {
             menu.classList.add('hidden');
             gameOverScreen.classList.add('hidden');
             uiLayer.classList.remove('hidden');
             initGame();
         }
-    }
+    };
 
     function endGame() {
         game.active = false;
@@ -1238,12 +1223,15 @@
         if(e.code === 'KeyD' || e.code === 'ArrowRight') keys.d = false;
     });
 
+    // Make game global for HTML events
+    window.game = game;
+
     gameLoop(0);
 
     window.addEventListener('beforeunload', () => {
-        if (window.deleteDoc && window.db && window.currentUser) {
-             const ref = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'gibwars_players', window.currentUser.uid);
-             window.deleteDoc(ref);
+        if (deleteDoc && db && currentUser) {
+             const ref = doc(db, 'artifacts', appId, 'public', 'data', 'gibwars_players', currentUser.uid);
+             deleteDoc(ref);
         }
     });
 </script>
