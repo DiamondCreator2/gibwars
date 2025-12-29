@@ -211,6 +211,24 @@
             text-align: center;
         }
         
+        .settings-row {
+            margin-top: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            color: #aaa;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 14px;
+        }
+        
+        input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            accent-color: #00ffff;
+        }
+
         .btn {
             margin-top: 40px;
             padding: 15px 50px;
@@ -379,6 +397,12 @@
         <b>Mobile:</b> Left Stick Move &bull; Right Stick Aim/Shoot<br>
         Keys 1-2-3 or Tap to Switch Weapons
     </div>
+    
+    <div class="settings-row">
+        <input type="checkbox" id="mobileToggle">
+        <label for="mobileToggle" style="cursor: pointer;">USE MOBILE CONTROLS</label>
+    </div>
+
     <button class="btn" id="startBtn" onclick="startGame()">CONNECTING...</button>
 </div>
 
@@ -397,6 +421,7 @@
 
     // Mobile Input State
     let isMobile = false;
+    let mobileInitialized = false;
     let mobileMove = { x: 0, y: 0 };
     let mobileAim = { x: 0, y: 0, active: false };
 
@@ -492,6 +517,7 @@
     const scoreEl = document.getElementById('scoreVal');
     const waveEl = document.getElementById('waveVal');
     const mobileControls = document.getElementById('mobileControls');
+    const finalScoreEl = document.getElementById('finalScore'); 
 
     // --- Firebase Logic ---
     (async () => {
@@ -806,7 +832,6 @@
     }
     class Particle extends Entity {
         constructor(pos, color) {
-            // Changed BoxGeometry to SphereGeometry to look like "orbs"
             super(new THREE.Mesh(new THREE.SphereGeometry(0.3, 4, 4), new THREE.MeshBasicMaterial({color:color})), 'particle', 1);
             this.mesh.position.copy(pos);
             this.velocity = new THREE.Vector3((Math.random()-0.5)*30, Math.random()*30, (Math.random()-0.5)*30);
@@ -851,23 +876,28 @@
 
     // --- Mobile Controls ---
     function initMobileControls() {
-        // Detect mobile
-        isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+        // Detect mobile or check manual toggle
+        const manualToggle = document.getElementById('mobileToggle').checked;
+        isMobile = manualToggle || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
         
         if (isMobile) {
             mobileControls.classList.remove('hidden');
-            // Show stick elements
-            setupStick('stickLeft', 'knobLeft', (x, y) => {
-                mobileMove.x = x;
-                mobileMove.y = y;
-            });
-            setupStick('stickRight', 'knobRight', (x, y, active) => {
-                mobileAim.x = x;
-                mobileAim.y = y;
-                mobileAim.active = active;
-                // Auto shoot when holding right stick
-                if (active) handleInput();
-            });
+            if (!mobileInitialized) {
+                // Show stick elements and setup listeners only once
+                setupStick('stickLeft', 'knobLeft', (x, y) => {
+                    mobileMove.x = x;
+                    mobileMove.y = y;
+                });
+                setupStick('stickRight', 'knobRight', (x, y, active) => {
+                    mobileAim.x = x;
+                    mobileAim.y = y;
+                    mobileAim.active = active;
+                    if (active) handleInput();
+                });
+                mobileInitialized = true;
+            }
+        } else {
+            mobileControls.classList.add('hidden');
         }
     }
 
@@ -913,7 +943,6 @@
     // --- Main Game Logic ---
     function initGame() {
         game.entities.forEach(e => scene.remove(e.mesh));
-        // Removed game.particles array - now everything is an entity
         for(let uid in remotePlayers) remotePlayers[uid].destroy();
         remotePlayers = {};
         
@@ -954,7 +983,6 @@
     }
 
     function createExplosion(pos, color) {
-        // Push particles to entities list so they get updated and cleaned up correctly
         for(let i=0; i<10; i++) game.entities.push(new Particle(pos, color));
     }
 
@@ -962,10 +990,7 @@
         if (!game.active || !game.player) return;
         
         let shootNow = false;
-        
-        // Mouse input
         if (mouse.down) shootNow = true;
-        // Mobile input (Right stick active)
         if (isMobile && mobileAim.active) shootNow = true;
 
         if (shootNow) {
@@ -1029,11 +1054,8 @@
 
             if (Math.random() < 0.015 * (1 + game.wave * 0.1)) spawnEnemy();
 
-            // Update Entities (Includes particles now)
             game.entities.forEach(e => e.update(dt));
             
-            // Removed separate particles filter loop as it was causing the bug
-
             const bullets = game.entities.filter(e => e.type === 'bullet');
             const enemies = game.entities.filter(e => e.type === 'enemy');
             const lootItems = game.entities.filter(e => e.type === 'loot');
