@@ -787,7 +787,12 @@
     function checkHost() {
         if (!window.currentUser) return;
         const allPlayers = [{uid: window.currentUser.uid, timestamp: myTimestamp}];
-        for(let uid in remotePlayers) allPlayers.push({uid: uid, timestamp: remotePlayers[uid].timestamp || Date.now()});
+        for(let uid in remotePlayers) {
+            // Only consider players we have data for
+            if(remotePlayers[uid]) {
+                allPlayers.push({uid: uid, timestamp: remotePlayers[uid].timestamp || Date.now()});
+            }
+        }
         allPlayers.sort((a,b) => a.timestamp - b.timestamp);
         window.isHost = (allPlayers[0].uid === window.currentUser.uid);
         statusDiv.innerText = "Online | User: " + window.currentUser.uid.slice(0, 4) + (window.isHost ? " (HOST)" : "");
@@ -801,12 +806,31 @@
 
         // Players Sync
         window.onSnapshot(playersRef, (snapshot) => {
+            const now = Date.now();
             snapshot.docChanges().forEach((change) => {
                 const data = change.doc.data(); const uid = change.doc.id;
                 if (uid === window.currentUser.uid) return;
-                if (change.type === "added") { remotePlayers[uid] = new RemotePlayer(uid, data); remotePlayers[uid].timestamp = data.timestamp; }
-                if (change.type === "modified" && remotePlayers[uid]) remotePlayers[uid].update(data);
-                if (change.type === "removed" && remotePlayers[uid]) { remotePlayers[uid].destroy(); delete remotePlayers[uid]; }
+                
+                if (change.type === "added") { 
+                    remotePlayers[uid] = new RemotePlayer(uid, data); 
+                    remotePlayers[uid].timestamp = data.timestamp; 
+                    remotePlayers[uid].lastSignal = now; // Initialize signal time
+                }
+                if (change.type === "modified") {
+                    if(remotePlayers[uid]) {
+                        remotePlayers[uid].update(data);
+                        remotePlayers[uid].lastSignal = now; // Update signal time
+                    } else {
+                        // Resurrect if we deleted them but they are back
+                        remotePlayers[uid] = new RemotePlayer(uid, data);
+                        remotePlayers[uid].timestamp = data.timestamp;
+                        remotePlayers[uid].lastSignal = now;
+                    }
+                }
+                if (change.type === "removed" && remotePlayers[uid]) { 
+                    remotePlayers[uid].destroy(); 
+                    delete remotePlayers[uid]; 
+                }
             });
             checkHost();
         });
@@ -992,7 +1016,18 @@
         if (game.active) {
             handleInput();
             sendNetworkUpdate();
-            checkHost();
+            
+            // Check for timed out players (5 seconds with no signal)
+            const now = Date.now();
+            let playersRemoved = false;
+            for (let uid in remotePlayers) {
+                if (remotePlayers[uid].lastSignal && (now - remotePlayers[uid].lastSignal > 5000)) {
+                    remotePlayers[uid].destroy();
+                    delete remotePlayers[uid];
+                    playersRemoved = true;
+                }
+            }
+            if (playersRemoved) checkHost(); // Re-check host if someone timed out
 
             // Host spawns enemies (limit count)
             if (window.isHost && game.enemies.size < 5 + (game.wave*2)) {
