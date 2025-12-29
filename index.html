@@ -16,7 +16,7 @@
             color: white;
             font-family: 'Roboto', sans-serif;
             user-select: none;
-            touch-action: none; /* Prevent browser zooming/scrolling */
+            touch-action: none;
         }
 
         #gameContainer {
@@ -27,7 +27,6 @@
             height: 100vh;
         }
 
-        /* UI Layer */
         #uiLayer {
             position: absolute;
             top: 0;
@@ -58,11 +57,9 @@
             flex-direction: column;
             align-items: flex-start;
             gap: 10px;
-            /* Move up slightly on mobile to make room for sticks */
             margin-bottom: 20px;
         }
 
-        /* Hotbar Styles */
         .hotbar {
             display: flex;
             gap: 8px;
@@ -71,7 +68,7 @@
         }
 
         .hotbar-slot {
-            width: 60px; /* Smaller for mobile fit */
+            width: 60px;
             height: 60px;
             background: rgba(0, 0, 0, 0.6);
             border: 2px solid #444;
@@ -92,28 +89,10 @@
             box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
         }
 
-        .hotbar-key {
-            position: absolute;
-            top: 4px;
-            left: 6px;
-            font-size: 10px;
-            color: #888;
-        }
-
-        .hotbar-icon {
-            font-size: 20px;
-            margin-bottom: 4px;
-        }
-
-        .hotbar-ammo {
-            font-size: 12px;
-            font-weight: bold;
-            color: #aaa;
-        }
-
-        .hotbar-slot.active .hotbar-ammo {
-            color: #fff;
-        }
+        .hotbar-key { position: absolute; top: 4px; left: 6px; font-size: 10px; color: #888; }
+        .hotbar-icon { font-size: 20px; margin-bottom: 4px; }
+        .hotbar-ammo { font-size: 12px; font-weight: bold; color: #aaa; }
+        .hotbar-slot.active .hotbar-ammo { color: #fff; }
 
         #slot-blaster.active { border-color: #00ffff; }
         #slot-rapid.active { border-color: #ffff00; background: rgba(255, 255, 0, 0.15); }
@@ -135,7 +114,6 @@
             transition: width 0.1s linear;
         }
 
-        /* Menus */
         #menu, #gameOverScreen {
             position: absolute;
             top: 0;
@@ -154,7 +132,7 @@
 
         h1 {
             font-family: 'Orbitron', sans-serif;
-            font-size: 50px; /* Slightly smaller for mobile */
+            font-size: 50px;
             margin: 0;
             background: linear-gradient(to bottom, #00ffff, #0088ff);
             -webkit-background-clip: text;
@@ -176,12 +154,7 @@
             font-size: 14px;
         }
         
-        input[type="checkbox"] {
-            width: 20px;
-            height: 20px;
-            cursor: pointer;
-            accent-color: #00ffff;
-        }
+        input[type="checkbox"] { width: 20px; height: 20px; cursor: pointer; accent-color: #00ffff; }
 
         .btn {
             margin-top: 40px;
@@ -198,11 +171,7 @@
             font-weight: bold;
         }
 
-        .btn:hover {
-            background: #ffffff;
-            box-shadow: 0 0 30px #00ffff;
-            transform: scale(1.05);
-        }
+        .btn:hover { background: #ffffff; box-shadow: 0 0 30px #00ffff; transform: scale(1.05); }
 
         .controls-hint {
             margin-top: 20px;
@@ -241,7 +210,6 @@
             pointer-events: none;
         }
 
-        /* Mobile Controls */
         #mobileControls {
             position: absolute;
             bottom: 30px;
@@ -280,13 +248,8 @@
             box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
         }
 
-        .shoot-stick {
-            border-color: rgba(255, 50, 50, 0.2);
-        }
-        .shoot-stick .joystick-knob {
-            background: rgba(255, 50, 50, 0.5);
-            box-shadow: 0 0 10px rgba(255, 50, 50, 0.5);
-        }
+        .shoot-stick { border-color: rgba(255, 50, 50, 0.2); }
+        .shoot-stick .joystick-knob { background: rgba(255, 50, 50, 0.5); box-shadow: 0 0 10px rgba(255, 50, 50, 0.5); }
     </style>
 </head>
 <body>
@@ -304,7 +267,6 @@
 
     <div class="hud-bottom">
         <div class="hotbar">
-            <!-- Added ontouchstart for mobile responsiveness -->
             <div class="hotbar-slot active" id="slot-blaster" ontouchstart="game.player.switchWeapon('blaster')" onmousedown="game.player.switchWeapon('blaster')">
                 <div class="hotbar-key">1</div>
                 <div class="hotbar-icon">🔫</div>
@@ -326,7 +288,6 @@
         </div>
     </div>
 
-    <!-- Mobile Controls Container -->
     <div id="mobileControls" class="hidden">
         <div id="stickLeft" class="joystick-area">
             <div id="knobLeft" class="joystick-knob"></div>
@@ -369,6 +330,8 @@
     let remotePlayers = {};
     let lastNetworkUpdate = 0;
     const NETWORK_RATE = 100;
+    window.isHost = false; // Determined by player list
+    let myTimestamp = Date.now();
 
     // Mobile Input State
     let isMobile = false;
@@ -452,6 +415,8 @@
         score: 0,
         wave: 1,
         entities: [],
+        enemies: new Map(), // Use Map for ID tracking
+        loot: new Map(),
         particles: [],
         lastShotTime: 0,
         player: null,
@@ -475,29 +440,20 @@
         let connected = false;
 
         const enableOfflineMode = (reason) => {
-            if (connected) return; // Already connected, ignore fallback
+            if (connected) return;
             console.warn("Falling back to Offline Mode. Reason:", reason);
             startBtn.innerText = "DEPLOY TANK (OFFLINE)";
             startBtn.disabled = false;
             statusDiv.innerText = "Mode: Offline (" + reason + ")";
             statusDiv.style.color = "#ffaa00";
-            
-            // Mock empty Firebase functions so game doesn't crash
-            // We use no-ops for offline
-            window.doc = () => {};
-            window.setDoc = async () => {};
-            window.onSnapshot = () => {};
-            window.collection = () => {};
-            window.deleteDoc = async () => {};
+            window.doc = () => {}; window.setDoc = async () => {}; window.onSnapshot = () => {}; window.collection = () => {}; window.deleteDoc = async () => {};
+            window.isHost = true; // Offline player is always host
         };
 
-        // Set a timeout: If not connected in 8 seconds, force offline mode
         const fallbackTimer = setTimeout(() => enableOfflineMode("Timeout"), 8000);
 
         try {
             statusDiv.innerText = "Connecting to Firebase...";
-            
-            // Your web app's Firebase configuration
             const firebaseConfig = {
               apiKey: "AIzaSyBuEYlH4Wp2s8Y9BnsDXLDVnCBCu6soAx4",
               authDomain: "gibwarsbackend.firebaseapp.com",
@@ -513,15 +469,8 @@
             db = getFirestore(app);
             appId = "gibwars-game-v1"; 
             
-            // Expose globally for game logic use if needed
-            window.db = db;
-            window.auth = auth;
-            window.appId = appId;
-            window.doc = doc;
-            window.setDoc = setDoc;
-            window.onSnapshot = onSnapshot;
-            window.collection = collection;
-            window.deleteDoc = deleteDoc;
+            window.db = db; window.auth = auth; window.appId = appId;
+            window.doc = doc; window.setDoc = setDoc; window.onSnapshot = onSnapshot; window.collection = collection; window.deleteDoc = deleteDoc;
 
             await signInAnonymously(auth);
 
@@ -529,8 +478,7 @@
                 if (user) {
                     window.currentUser = user;
                     connected = true;
-                    clearTimeout(fallbackTimer); // Clear the fallback timer
-                    
+                    clearTimeout(fallbackTimer);
                     startBtn.innerText = "DEPLOY TANK";
                     startBtn.disabled = false;
                     statusDiv.innerText = "Online | User: " + user.uid.slice(0, 4);
@@ -539,10 +487,7 @@
                 }
             });
 
-        } catch (e) {
-            console.error("Connection error:", e);
-            enableOfflineMode("Error");
-        }
+        } catch (e) { console.error("Connection error:", e); enableOfflineMode("Error"); }
     })();
 
     // --- Entity System ---
@@ -558,7 +503,6 @@
             this.velocity = new THREE.Vector3();
             scene.add(this.mesh);
         }
-
         update(dt) {
             this.mesh.position.add(this.velocity.clone().multiplyScalar(dt));
             const limit = MAP_SIZE - 4;
@@ -567,11 +511,7 @@
             if (this.mesh.position.z < -limit) this.mesh.position.z = -limit;
             if (this.mesh.position.z > limit) this.mesh.position.z = limit;
         }
-
-        destroy() {
-            this.markedForDeletion = true;
-            scene.remove(this.mesh);
-        }
+        destroy() { this.markedForDeletion = true; scene.remove(this.mesh); }
     }
 
     function createTankMesh(color, isRemote = false) {
@@ -592,7 +532,6 @@
 
         const turretGroup = new THREE.Group();
         turretGroup.position.set(0, 1.2, 0);
-        
         const turretGeo = new THREE.BoxGeometry(1.8, 0.8, 2);
         const turretMat = new THREE.MeshStandardMaterial({ color: color, emissive: isRemote ? 0x222222 : 0x002244, emissiveIntensity: 0.5 });
         const turret = new THREE.Mesh(turretGeo, turretMat);
@@ -633,98 +572,48 @@
             this.weapon = 'blaster';
             this.ammo = { blaster: Infinity, rapid: 0, shotgun: 0 };
         }
-
         update(dt) {
             let moveDir = new THREE.Vector3(0, 0, 0);
-            
-            // Keyboard Input
             if (keys.w) moveDir.z -= 1;
             if (keys.s) moveDir.z += 1;
             if (keys.a) moveDir.x -= 1;
             if (keys.d) moveDir.x += 1;
-            
-            // Mobile Input (Override if active)
-            if (isMobile && (mobileMove.x !== 0 || mobileMove.y !== 0)) {
-                moveDir.set(mobileMove.x, 0, mobileMove.y);
-            }
-            
-            if (moveDir.length() > 0) {
-                // Normalize only if length > 1 (allows for analog speed)
-                if(moveDir.length() > 1) moveDir.normalize();
-                moveDir.multiplyScalar(this.speed);
-            }
-
+            if (isMobile && (mobileMove.x !== 0 || mobileMove.y !== 0)) moveDir.set(mobileMove.x, 0, mobileMove.y);
+            if (moveDir.length() > 0) { if(moveDir.length() > 1) moveDir.normalize(); moveDir.multiplyScalar(this.speed); }
             this.velocity.lerp(moveDir, 8 * dt);
             super.update(dt);
-            
-            // Aiming
             if (isMobile && mobileAim.active) {
-                // Aim based on right stick
-                const lookTarget = new THREE.Vector3(
-                    this.mesh.position.x + mobileAim.x * 10,
-                    this.mesh.position.y,
-                    this.mesh.position.z + mobileAim.y * 10
-                );
+                const lookTarget = new THREE.Vector3(this.mesh.position.x + mobileAim.x * 10, this.mesh.position.y, this.mesh.position.z + mobileAim.y * 10);
                 this.mesh.lookAt(lookTarget);
-            } else {
-                // Mouse aim
-                this.mesh.lookAt(mouse.worldPos.x, this.mesh.position.y, mouse.worldPos.z);
-            }
+            } else { this.mesh.lookAt(mouse.worldPos.x, this.mesh.position.y, mouse.worldPos.z); }
         }
-
-        switchWeapon(type) {
-            if (type === 'blaster' || this.ammo[type] > 0) {
-                this.weapon = type;
-                updateUI();
-            }
-        }
-
-        addAmmo(type, amount) {
-            this.ammo[type] += amount;
-            if (this.weapon === 'blaster' && type !== 'blaster') this.switchWeapon(type);
-            updateUI();
-        }
-
+        switchWeapon(type) { if (type === 'blaster' || this.ammo[type] > 0) { this.weapon = type; updateUI(); } }
+        addAmmo(type, amount) { this.ammo[type] += amount; if (this.weapon === 'blaster' && type !== 'blaster') this.switchWeapon(type); updateUI(); }
         consumeAmmo() {
             if (this.weapon === 'blaster') return true;
-            if (this.ammo[this.weapon] > 0) {
-                this.ammo[this.weapon]--;
-                if (this.ammo[this.weapon] <= 0) this.switchWeapon('blaster');
-                updateUI();
-                return true;
-            }
-            this.switchWeapon('blaster');
-            return false;
+            if (this.ammo[this.weapon] > 0) { this.ammo[this.weapon]--; if (this.ammo[this.weapon] <= 0) this.switchWeapon('blaster'); updateUI(); return true; }
+            this.switchWeapon('blaster'); return false;
         }
     }
 
     class Pet extends Entity {
         constructor(player) {
             const group = new THREE.Group();
-            const core = new THREE.Mesh(new THREE.SphereGeometry(0.6), new THREE.MeshStandardMaterial({ color: 0x00ff00, emissive: 0x004400 }));
-            group.add(core);
-            const ring = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.1, 4, 8), new THREE.MeshStandardMaterial({ color: 0x333333 }));
-            ring.rotation.x = Math.PI / 2;
-            group.add(ring);
+            const core = new THREE.Mesh(new THREE.SphereGeometry(0.6), new THREE.MeshStandardMaterial({ color: 0x00ff00, emissive: 0x004400 })); group.add(core);
+            const ring = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.1, 4, 8), new THREE.MeshStandardMaterial({ color: 0x333333 })); ring.rotation.x = Math.PI / 2; group.add(ring);
             super(group, 'pet', 100);
-            this.player = player;
-            this.lastShot = 0;
-            this.mesh.position.copy(player.mesh.position);
-            this.mesh.position.y = 5;
+            this.player = player; this.lastShot = 0; this.mesh.position.copy(player.mesh.position); this.mesh.position.y = 5;
         }
         update(dt) {
             if (!this.player) return;
-            const targetPos = this.player.mesh.position.clone();
-            targetPos.y = 5;
-            targetPos.x += Math.sin(Date.now() * 0.002) * 4; 
-            targetPos.z += Math.cos(Date.now() * 0.002) * 4; 
+            const targetPos = this.player.mesh.position.clone(); targetPos.y = 5;
+            targetPos.x += Math.sin(Date.now() * 0.002) * 4; targetPos.z += Math.cos(Date.now() * 0.002) * 4; 
             const dir = new THREE.Vector3().subVectors(targetPos, this.mesh.position);
-            this.mesh.position.add(dir.multiplyScalar(3 * dt));
-            this.mesh.rotation.y += 2 * dt;
+            this.mesh.position.add(dir.multiplyScalar(3 * dt)); this.mesh.rotation.y += 2 * dt;
             this.lastShot -= dt;
             if (this.lastShot <= 0) {
                 let nearest = null; let minDist = 40;
-                game.entities.forEach(e => { if (e.type === 'enemy') { const d = this.mesh.position.distanceTo(e.mesh.position); if (d < minDist) { minDist = d; nearest = e; } } });
+                game.enemies.forEach(e => { const d = this.mesh.position.distanceTo(e.mesh.position); if (d < minDist) { minDist = d; nearest = e; } });
                 if (nearest) {
                     const dir = new THREE.Vector3().subVectors(nearest.mesh.position, this.mesh.position).normalize();
                     game.entities.push(new Bullet(this.mesh.position, dir, 60, 0x00ff00, 'player'));
@@ -733,6 +622,7 @@
             }
         }
     }
+
     class RemotePlayer {
         constructor(id, data) {
             this.id = id;
@@ -743,24 +633,20 @@
             this.lastShootTime = data.lastShootTime;
         }
         update(data) {
-            this.mesh.position.x = data.x;
-            this.mesh.position.z = data.z;
-            this.mesh.rotation.y = data.rot;
-            if (data.lastShootTime > this.lastShootTime) {
-                this.shoot(data);
-                this.lastShootTime = data.lastShootTime;
-            }
+            this.mesh.position.x = data.x; this.mesh.position.z = data.z; this.mesh.rotation.y = data.rot;
+            if (data.lastShootTime > this.lastShootTime) { this.shoot(data); this.lastShootTime = data.lastShootTime; }
         }
         shoot(data) {
             const dir = new THREE.Vector3(data.shootDirX, 0, data.shootDirZ);
-            const startPos = this.mesh.position.clone().add(dir.clone().multiplyScalar(3));
-            startPos.y = 1.5;
+            const startPos = this.mesh.position.clone().add(dir.clone().multiplyScalar(3)); startPos.y = 1.5;
             game.entities.push(new Bullet(startPos, dir, 80, 0xff00ff, 'remote'));
         }
         destroy() { scene.remove(this.mesh); }
     }
+
+    // Shared Enemy Class (Handles both Host Logic and Client Interpolation)
     class Enemy extends Entity {
-        constructor(x, z, subType) {
+        constructor(id, x, z, subType) {
             const group = new THREE.Group();
             let hp=40, color=0x880000, scale=1.0, speed=15;
             if (subType === 'gunner') { hp=30; color=0xffcc00; scale=0.8; speed=20; }
@@ -771,34 +657,74 @@
             turret.position.y = 1.6*scale; group.add(turret);
             const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.25*scale, 0.25*scale, 3*scale), new THREE.MeshStandardMaterial({color:0x222222}));
             barrel.rotation.x = -Math.PI/2; barrel.position.set(0, 1.6*scale, 1.5*scale); group.add(barrel);
+            
             group.position.set(x, 0, z);
             super(group, 'enemy', hp);
+            this.id = id;
             this.subType = subType; this.speed = speed; this.scale = scale; this.shootTimer = 0;
+            this.targetPos = new THREE.Vector3(x, 0, z); // For client interpolation
+            this.lastSync = 0;
         }
         update(dt) {
-            if(!game.player) return;
-            let dir = new THREE.Vector3().subVectors(game.player.mesh.position, this.mesh.position);
-            dir.y=0; this.mesh.rotation.y = Math.atan2(dir.x, dir.z); dir.normalize();
-            let move = true;
-            const dist = this.mesh.position.distanceTo(game.player.mesh.position);
-            if(this.subType === 'gunner' && dist < 35) move = false;
-            if(move) { this.velocity.lerp(dir.multiplyScalar(this.speed), 4*dt); super.update(dt); }
-            
-            // Shooting Logic
-            this.shootTimer -= dt;
-            if(this.shootTimer <= 0 && dist < 40) {
-                // Red enemies (standard) do not shoot anymore
-                if (this.subType !== 'standard') {
-                    let color = this.subType === 'gunner' ? 0xffff00 : 0xff0000;
-                    // Red bullets (Heavy enemies) go slower (25 instead of 50)
-                    let speed = this.subType === 'gunner' ? 50 : 25; 
-                    
-                    game.entities.push(new Bullet(this.mesh.position.clone().add(new THREE.Vector3(0,1.5,0)), dir, speed, color, 'enemy'));
-                    this.shootTimer = this.subType === 'gunner' ? 0.5 : 2.0;
+            if (window.isHost) {
+                // --- HOST LOGIC: Run AI ---
+                if(!game.player) return;
+                
+                // Find nearest player (including remotes) for target
+                let target = game.player.mesh.position;
+                let minDist = this.mesh.position.distanceTo(target);
+                
+                for(let uid in remotePlayers) {
+                    let d = this.mesh.position.distanceTo(remotePlayers[uid].mesh.position);
+                    if (d < minDist) { minDist = d; target = remotePlayers[uid].mesh.position; }
                 }
+
+                let dir = new THREE.Vector3().subVectors(target, this.mesh.position);
+                dir.y=0; this.mesh.rotation.y = Math.atan2(dir.x, dir.z); dir.normalize();
+                
+                let move = true;
+                if(this.subType === 'gunner' && minDist < 35) move = false;
+                if(move) { this.velocity.lerp(dir.multiplyScalar(this.speed), 4*dt); super.update(dt); }
+                else { this.velocity.set(0,0,0); }
+
+                // Host Shooting
+                this.shootTimer -= dt;
+                if(this.shootTimer <= 0 && minDist < 40) {
+                    if (this.subType !== 'standard') {
+                        // Notify DB of shoot event
+                        const shootData = {
+                            lastShootTime: Date.now(),
+                            shootDirX: dir.x,
+                            shootDirZ: dir.z
+                        };
+                        const enemyRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'gibwars_enemies', this.id);
+                        window.setDoc(enemyRef, shootData, { merge: true });
+                        this.shootTimer = this.subType === 'gunner' ? 0.5 : 2.0;
+                    }
+                }
+
+                // Throttle Position Updates to DB (5 times per sec)
+                const now = Date.now();
+                if (now - this.lastSync > 200) {
+                    const enemyRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'gibwars_enemies', this.id);
+                    window.setDoc(enemyRef, {
+                        x: this.mesh.position.x,
+                        z: this.mesh.position.z,
+                        rot: this.mesh.rotation.y,
+                        hp: this.hp
+                    }, { merge: true });
+                    this.lastSync = now;
+                }
+
+            } else {
+                // --- CLIENT LOGIC: Interpolate ---
+                this.mesh.position.lerp(this.targetPos, 5 * dt);
+                // Rotation lerp
+                // Shoot logic handled by snapshot listener
             }
         }
     }
+
     class Bullet extends Entity {
         constructor(pos, dir, speed, color, owner) {
             super(new THREE.Mesh(new THREE.SphereGeometry(0.5), new THREE.MeshBasicMaterial({color:color})), 'bullet', 1);
@@ -808,42 +734,43 @@
         }
         update(dt) { super.update(dt); this.life -= dt; if (this.life <= 0) this.destroy(); }
     }
+
     class Loot extends Entity {
-        constructor(x, z, lootType) {
+        constructor(id, x, z, lootType) {
             const group = new THREE.Group();
             let lightColor = 0xffffff;
             if (lootType === 'health') {
                 lightColor = 0x00ff00;
-                const box = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1, 1.2), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 }));
-                group.add(box);
-                const c1 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.1, 0.3), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
-                c1.position.y = 0.51; group.add(c1);
-                const c2 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.1, 0.8), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
-                c2.position.y = 0.51; group.add(c2);
+                const box = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1, 1.2), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 })); group.add(box);
+                const c1 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.1, 0.3), new THREE.MeshBasicMaterial({ color: 0xff0000 })); c1.position.y = 0.51; group.add(c1);
+                const c2 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.1, 0.8), new THREE.MeshBasicMaterial({ color: 0xff0000 })); c2.position.y = 0.51; group.add(c2);
             } else if (lootType === 'rapid') {
                 lightColor = 0xffff00;
-                const box = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.8, 0.8), new THREE.MeshStandardMaterial({ color: 0xffcc00, roughness: 0.6 }));
-                group.add(box);
-                const lid = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.15, 0.9), new THREE.MeshStandardMaterial({ color: 0x333333 }));
-                lid.position.y = 0.4; group.add(lid);
+                const box = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.8, 0.8), new THREE.MeshStandardMaterial({ color: 0xffcc00, roughness: 0.6 })); group.add(box);
+                const lid = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.15, 0.9), new THREE.MeshStandardMaterial({ color: 0x333333 })); lid.position.y = 0.4; group.add(lid);
             } else if (lootType === 'shotgun') {
                 lightColor = 0xff0000;
-                const box = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1, 0.8), new THREE.MeshStandardMaterial({ color: 0xcc0000, roughness: 0.5 }));
-                group.add(box);
-                const lid = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.2, 0.9), new THREE.MeshStandardMaterial({ color: 0x111111 }));
-                lid.position.y = 0.45; group.add(lid);
+                const box = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1, 0.8), new THREE.MeshStandardMaterial({ color: 0xcc0000, roughness: 0.5 })); group.add(box);
+                const lid = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.2, 0.9), new THREE.MeshStandardMaterial({ color: 0x111111 })); lid.position.y = 0.45; group.add(lid);
             }
             group.position.set(x, 2, z);
             const light = new THREE.PointLight(lightColor, 1, 8); group.add(light);
             super(group, 'loot', 1);
-            this.lootType = lootType; this.life = 15; this.floatOffset = Math.random()*100;
+            this.id = id;
+            this.lootType = lootType; this.life = 20; this.floatOffset = Math.random()*100;
         }
         update(dt) {
             this.mesh.rotation.y += 2*dt;
             this.mesh.position.y = 1.5 + Math.sin(Date.now()*0.003 + this.floatOffset)*0.5;
-            this.life -= dt; if(this.life <= 0) this.destroy();
+            this.life -= dt; 
+            // Only host removes timeout loot
+            if(window.isHost && this.life <= 0) {
+                const lootRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'gibwars_loot', this.id);
+                window.deleteDoc(lootRef);
+            }
         }
     }
+
     class Particle extends Entity {
         constructor(pos, color) {
             super(new THREE.Mesh(new THREE.SphereGeometry(0.3, 4, 4), new THREE.MeshBasicMaterial({color:color})), 'particle', 1);
@@ -852,37 +779,108 @@
             this.life = 1.0;
         }
         update(dt) {
-            this.velocity.y -= 60*dt; 
-            super.update(dt); 
-            this.life -= dt*2; 
-            this.mesh.scale.setScalar(this.life); 
-            if(this.life <= 0) this.destroy();
+            this.velocity.y -= 60*dt; super.update(dt); this.life -= dt*2; this.mesh.scale.setScalar(this.life); if(this.life <= 0) this.destroy();
         }
     }
 
-    // --- Multiplayer ---
+    // --- Multiplayer System ---
+    function checkHost() {
+        if (!window.currentUser) return;
+        const allPlayers = [{uid: window.currentUser.uid, timestamp: myTimestamp}];
+        for(let uid in remotePlayers) allPlayers.push({uid: uid, timestamp: remotePlayers[uid].timestamp || Date.now()});
+        allPlayers.sort((a,b) => a.timestamp - b.timestamp);
+        window.isHost = (allPlayers[0].uid === window.currentUser.uid);
+        statusDiv.innerText = "Online | User: " + window.currentUser.uid.slice(0, 4) + (window.isHost ? " (HOST)" : "");
+    }
+
     function setupMultiplayer() {
         if (!window.db || !window.currentUser) return;
         const playersRef = window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'gibwars_players');
+        const enemiesRef = window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'gibwars_enemies');
+        const lootRef = window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'gibwars_loot');
+
+        // Players Sync
         window.onSnapshot(playersRef, (snapshot) => {
-            const now = Date.now();
             snapshot.docChanges().forEach((change) => {
-                const data = change.doc.data();
-                const uid = change.doc.id;
+                const data = change.doc.data(); const uid = change.doc.id;
                 if (uid === window.currentUser.uid) return;
-                if (change.type === "added") { if (now - data.timestamp < 10000) remotePlayers[uid] = new RemotePlayer(uid, data); }
+                if (change.type === "added") { remotePlayers[uid] = new RemotePlayer(uid, data); remotePlayers[uid].timestamp = data.timestamp; }
                 if (change.type === "modified" && remotePlayers[uid]) remotePlayers[uid].update(data);
                 if (change.type === "removed" && remotePlayers[uid]) { remotePlayers[uid].destroy(); delete remotePlayers[uid]; }
             });
+            checkHost();
         });
-        statusDiv.innerText = "Online | User: " + window.currentUser.uid.slice(0, 4);
+
+        // Enemies Sync
+        window.onSnapshot(enemiesRef, (snapshot) => {
+            snapshot.docChanges().forEach((change) => {
+                const id = change.doc.id;
+                const data = change.doc.data();
+                
+                if (change.type === "added") {
+                    if (!game.enemies.has(id)) {
+                        const enemy = new Enemy(id, data.x, data.z, data.type);
+                        game.enemies.set(id, enemy);
+                        game.entities.push(enemy);
+                    }
+                }
+                if (change.type === "modified") {
+                    const enemy = game.enemies.get(id);
+                    if (enemy) {
+                        if (!window.isHost) {
+                            enemy.targetPos.set(data.x, 0, data.z);
+                            enemy.mesh.rotation.y = data.rot;
+                            // Check for shoot event (simple check against last time)
+                            if (data.lastShootTime > (enemy.lastShootTime || 0)) {
+                                enemy.lastShootTime = data.lastShootTime;
+                                const dir = new THREE.Vector3(data.shootDirX, 0, data.shootDirZ);
+                                const startPos = enemy.mesh.position.clone().add(new THREE.Vector3(0, 1.5, 0));
+                                
+                                if (enemy.subType === 'heavy') {
+                                    for(let i = -2; i <= 2; i++) {
+                                        let spreadDir = dir.clone(); spreadDir.applyAxisAngle(new THREE.Vector3(0,1,0), i * 0.15);
+                                        game.entities.push(new Bullet(startPos, spreadDir, 25, 0xff0000, 'enemy'));
+                                    }
+                                } else if (enemy.subType === 'gunner') {
+                                    game.entities.push(new Bullet(startPos, dir, 50, 0xffff00, 'enemy'));
+                                }
+                            }
+                        }
+                    }
+                }
+                if (change.type === "removed") {
+                    const enemy = game.enemies.get(id);
+                    if (enemy) { enemy.destroy(); game.enemies.delete(id); }
+                }
+            });
+        });
+
+        // Loot Sync
+        window.onSnapshot(lootRef, (snapshot) => {
+            snapshot.docChanges().forEach((change) => {
+                const id = change.doc.id;
+                const data = change.doc.data();
+                if (change.type === "added") {
+                    if (!game.loot.has(id)) {
+                        const item = new Loot(id, data.x, data.z, data.type);
+                        game.loot.set(id, item);
+                        game.entities.push(item);
+                    }
+                }
+                if (change.type === "removed") {
+                    const item = game.loot.get(id);
+                    if (item) { item.destroy(); game.loot.delete(id); }
+                }
+            });
+        });
     }
+
     function sendNetworkUpdate(isShooting = false, shootDir = null) {
         if (!window.db || !window.currentUser || !game.player) return;
         const now = Date.now();
         if (now - lastNetworkUpdate < NETWORK_RATE && !isShooting) return;
         const playerRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'gibwars_players', window.currentUser.uid);
-        const data = { x: game.player.mesh.position.x, z: game.player.mesh.position.z, rot: game.player.mesh.rotation.y, timestamp: now, hp: game.player.hp };
+        const data = { x: game.player.mesh.position.x, z: game.player.mesh.position.z, rot: game.player.mesh.rotation.y, timestamp: myTimestamp, hp: game.player.hp };
         if (isShooting && shootDir) { data.lastShootTime = now; data.shootDirX = shootDir.x; data.shootDirZ = shootDir.z; }
         window.setDoc(playerRef, data, { merge: true }).catch(err => console.error(err));
         lastNetworkUpdate = now;
@@ -890,164 +888,93 @@
 
     // --- Mobile Controls ---
     function initMobileControls() {
-        // Detect mobile or check manual toggle
         const manualToggle = document.getElementById('mobileToggle').checked;
         isMobile = manualToggle || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-        
         if (isMobile) {
             mobileControls.classList.remove('hidden');
             if (!mobileInitialized) {
-                // Show stick elements and setup listeners only once
-                setupStick('stickLeft', 'knobLeft', (x, y) => {
-                    mobileMove.x = x;
-                    mobileMove.y = y;
-                });
-                setupStick('stickRight', 'knobRight', (x, y, active) => {
-                    mobileAim.x = x;
-                    mobileAim.y = y;
-                    mobileAim.active = active;
-                    if (active) handleInput();
-                });
+                setupStick('stickLeft', 'knobLeft', (x, y) => { mobileMove.x = x; mobileMove.y = y; });
+                setupStick('stickRight', 'knobRight', (x, y, active) => { mobileAim.x = x; mobileAim.y = y; mobileAim.active = active; if (active) handleInput(); });
                 mobileInitialized = true;
             }
-        } else {
-            mobileControls.classList.add('hidden');
-        }
+        } else { mobileControls.classList.add('hidden'); }
     }
-
     function setupStick(areaId, knobId, callback) {
-        const area = document.getElementById(areaId);
-        const knob = document.getElementById(knobId);
-        let startX = 0, startY = 0;
-        
-        area.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            const touch = e.changedTouches[0];
-            startX = touch.clientX;
-            startY = touch.clientY;
-            callback(0, 0, true);
-        }, {passive: false});
-
-        area.addEventListener('touchmove', (e) => {
-            e.preventDefault();
-            const touch = e.changedTouches[0];
-            const dx = touch.clientX - startX;
-            const dy = touch.clientY - startY;
-            const distance = Math.min(35, Math.hypot(dx, dy));
-            const angle = Math.atan2(dy, dx);
-            
-            const kx = Math.cos(angle) * distance;
-            const ky = Math.sin(angle) * distance;
-            
-            knob.style.transform = `translate(calc(-50% + ${kx}px), calc(-50% + ${ky}px))`;
-            
-            // Normalize -1 to 1
-            const nx = kx / 35;
-            const ny = ky / 35;
-            callback(nx, ny, true);
-        }, {passive: false});
-
-        area.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            knob.style.transform = `translate(-50%, -50%)`;
-            callback(0, 0, false);
-        }, {passive: false});
+        const area = document.getElementById(areaId); const knob = document.getElementById(knobId); let startX=0, startY=0;
+        area.addEventListener('touchstart', (e) => { e.preventDefault(); const touch = e.changedTouches[0]; startX = touch.clientX; startY = touch.clientY; callback(0, 0, true); }, {passive: false});
+        area.addEventListener('touchmove', (e) => { e.preventDefault(); const touch = e.changedTouches[0]; const dx = touch.clientX - startX; const dy = touch.clientY - startY; const dist = Math.min(35, Math.hypot(dx, dy)); const ang = Math.atan2(dy, dx); const kx = Math.cos(ang) * dist; const ky = Math.sin(ang) * dist; knob.style.transform = `translate(calc(-50% + ${kx}px), calc(-50% + ${ky}px))`; callback(kx/35, ky/35, true); }, {passive: false});
+        area.addEventListener('touchend', (e) => { e.preventDefault(); knob.style.transform = `translate(-50%, -50%)`; callback(0, 0, false); }, {passive: false});
     }
 
     // --- Main Game Logic ---
     function initGame() {
         game.entities.forEach(e => scene.remove(e.mesh));
-        // Removed game.particles array - now everything is an entity
         for(let uid in remotePlayers) remotePlayers[uid].destroy();
         remotePlayers = {};
-        
+        game.enemies.clear(); game.loot.clear();
         game.entities = [];
-        game.score = 0;
-        game.wave = 1;
-        game.active = true;
-
-        game.player = new Player();
-        game.entities.push(game.player);
-        game.pet = new Pet(game.player);
-        game.entities.push(game.pet);
-
-        updateUI();
-        setupMultiplayer();
-        initMobileControls();
+        game.score = 0; game.wave = 1; game.active = true;
+        game.player = new Player(); game.entities.push(game.player);
+        game.pet = new Pet(game.player); game.entities.push(game.pet);
+        updateUI(); setupMultiplayer(); initMobileControls();
     }
 
+    // Host Only Spawn
     function spawnEnemy() {
-        let angle = Math.random() * Math.PI * 2;
-        let dist = MAP_SIZE - 20; 
-        let x = Math.cos(angle) * dist;
-        let z = Math.sin(angle) * dist;
-        let r = Math.random();
+        if (!window.isHost || !window.db) return;
+        const angle = Math.random() * Math.PI * 2;
+        const dist = MAP_SIZE - 20; 
+        const x = Math.cos(angle) * dist;
+        const z = Math.sin(angle) * dist;
+        const r = Math.random();
         let type = 'standard';
-        if (r < 0.2) type = 'heavy';
-        else if (r < 0.5) type = 'gunner';
-        game.entities.push(new Enemy(x, z, type));
+        if (r < 0.2) type = 'heavy'; else if (r < 0.5) type = 'gunner';
+        
+        // Write to DB
+        const newEnemyRef = window.doc(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'gibwars_enemies'));
+        window.setDoc(newEnemyRef, { type: type, x: x, z: z, rot: 0, hp: (type=='heavy'?80: (type=='gunner'?30:40)), lastShootTime: 0 });
     }
 
     function spawnLoot(x, z) {
+        if (!window.isHost || !window.db) return;
         const rand = Math.random();
         let type = null;
-        if (rand < 0.20) type = 'health';
-        else if (rand < 0.35) type = 'rapid';
-        else if (rand < 0.50) type = 'shotgun';
-        if (type) game.entities.push(new Loot(x, z, type));
+        if (rand < 0.20) type = 'health'; else if (rand < 0.35) type = 'rapid'; else if (rand < 0.50) type = 'shotgun';
+        if (type) {
+            const newLootRef = window.doc(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'gibwars_loot'));
+            window.setDoc(newLootRef, { type: type, x: x, z: z });
+        }
     }
 
-    function createExplosion(pos, color) {
-        for(let i=0; i<10; i++) game.entities.push(new Particle(pos, color));
-    }
+    function createExplosion(pos, color) { for(let i=0; i<10; i++) game.entities.push(new Particle(pos, color)); }
 
     function handleInput() {
         if (!game.active || !game.player) return;
-        
         let shootNow = false;
         if (mouse.down) shootNow = true;
         if (isMobile && mobileAim.active) shootNow = true;
-
         if (shootNow) {
             let now = Date.now();
             let fireRate = 300;
             if (game.player.weapon === 'rapid') fireRate = 80;
             if (game.player.weapon === 'shotgun') fireRate = 600;
-            if (now - game.lastShotTime > fireRate) {
-                shoot();
-                game.lastShotTime = now;
-            }
+            if (now - game.lastShotTime > fireRate) { shoot(); game.lastShotTime = now; }
         }
     }
 
     function shoot() {
         if (!game.player || !game.player.consumeAmmo()) return;
-
         let dir;
-        
-        if (isMobile && mobileAim.active) {
-            dir = new THREE.Vector3(mobileAim.x, 0, mobileAim.y).normalize();
-        } else {
-            dir = new THREE.Vector3().subVectors(mouse.worldPos, game.player.mesh.position);
-            dir.y = 0;
-            dir.normalize();
-        }
-
+        if (isMobile && mobileAim.active) dir = new THREE.Vector3(mobileAim.x, 0, mobileAim.y).normalize();
+        else { dir = new THREE.Vector3().subVectors(mouse.worldPos, game.player.mesh.position); dir.y = 0; dir.normalize(); }
         const speed = 80;
         let startPos = game.player.mesh.position.clone();
-        startPos.add(dir.clone().multiplyScalar(3));
-        startPos.y = 1.5;
-
+        startPos.add(dir.clone().multiplyScalar(3)); startPos.y = 1.5;
         if (game.player.weapon === 'shotgun') {
-            for(let i = -2; i <= 2; i++) {
-                let spreadDir = dir.clone();
-                spreadDir.applyAxisAngle(new THREE.Vector3(0,1,0), i * 0.12);
-                game.entities.push(new Bullet(startPos, spreadDir, speed, 0xff0000, 'player'));
-            }
+            for(let i = -2; i <= 2; i++) { let spreadDir = dir.clone(); spreadDir.applyAxisAngle(new THREE.Vector3(0,1,0), i * 0.12); game.entities.push(new Bullet(startPos, spreadDir, speed, 0xff0000, 'player')); }
         } else {
             let color = game.player.weapon === 'rapid' ? 0xffff00 : 0x00ffff;
-            let d = dir.clone();
-            if (game.player.weapon === 'rapid') d.applyAxisAngle(new THREE.Vector3(0,1,0), (Math.random()-0.5)*0.1);
+            let d = dir.clone(); if (game.player.weapon === 'rapid') d.applyAxisAngle(new THREE.Vector3(0,1,0), (Math.random()-0.5)*0.1);
             game.entities.push(new Bullet(startPos, d, speed, color, 'player'));
         }
         sendNetworkUpdate(true, dir);
@@ -1057,7 +984,6 @@
         requestAnimationFrame(gameLoop);
         const dt = Math.min((time - lastTime) / 1000, 0.1);
         lastTime = time;
-
         raycaster.setFromCamera(mouseVector, camera);
         const intersect = new THREE.Vector3();
         raycaster.ray.intersectPlane(mousePlane, intersect);
@@ -1066,69 +992,71 @@
         if (game.active) {
             handleInput();
             sendNetworkUpdate();
+            checkHost();
 
-            if (Math.random() < 0.015 * (1 + game.wave * 0.1)) spawnEnemy();
+            // Host spawns enemies (limit count)
+            if (window.isHost && game.enemies.size < 5 + (game.wave*2)) {
+                if (Math.random() < 0.02) spawnEnemy();
+            }
 
-            // Update Entities (Includes particles now)
             game.entities.forEach(e => e.update(dt));
             
-            // Removed separate particles filter loop as it was causing the bug
-
             const bullets = game.entities.filter(e => e.type === 'bullet');
-            const enemies = game.entities.filter(e => e.type === 'enemy');
-            const lootItems = game.entities.filter(e => e.type === 'loot');
-            const player = game.player;
-
+            
+            // Collisions (Optimistic Local calc, then update DB)
             bullets.forEach(b => {
                 if (b.markedForDeletion) return;
-                if (b.owner === 'player' || b.owner === 'remote') {
-                    enemies.forEach(e => {
-                        if (e.markedForDeletion) return;
-                        if (b.mesh.position.distanceTo(e.mesh.position) < (b.radius + e.radius)) {
+                
+                // Bullet vs Enemy
+                if (b.owner === 'player' || b.owner === 'remote' || b.owner === 'pet') {
+                    // Iterate map values
+                    for (let enemy of game.enemies.values()) {
+                        if (enemy.markedForDeletion) continue;
+                        if (b.mesh.position.distanceTo(enemy.mesh.position) < (b.radius + enemy.radius)) {
                             b.destroy();
-                            e.hp -= b.damage;
                             createExplosion(b.mesh.position, 0xffff00);
-                            if (e.hp <= 0) {
-                                e.destroy();
-                                createExplosion(e.mesh.position, 0xff00ff);
-                                if (b.owner === 'player') {
-                                    spawnLoot(e.mesh.position.x, e.mesh.position.z);
-                                    game.score += 100;
-                                    scoreEl.innerText = game.score;
-                                    game.wave = 1 + Math.floor(game.score / 1000);
-                                    waveEl.innerText = game.wave;
+                            
+                            // Decrease HP locally immediately for feedback
+                            enemy.hp -= b.damage;
+                            
+                            // Update DB
+                            if (window.db) {
+                                const enemyRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'gibwars_enemies', enemy.id);
+                                if (enemy.hp <= 0) {
+                                    // Kill
+                                    createExplosion(enemy.mesh.position, 0xff00ff);
+                                    if(window.isHost) spawnLoot(enemy.mesh.position.x, enemy.mesh.position.z); // Host spawns loot
+                                    window.deleteDoc(enemyRef);
+                                } else {
+                                    window.setDoc(enemyRef, { hp: enemy.hp }, { merge: true });
                                 }
                             }
                         }
-                    });
+                    }
                 }
-                if (b.owner === 'enemy' || b.owner === 'remote_fire') {
-                     if (b.mesh.position.distanceTo(player.mesh.position) < (b.radius + player.radius)) {
+                
+                // Enemy Bullet vs Player
+                if (b.owner === 'enemy') {
+                     if (b.mesh.position.distanceTo(game.player.mesh.position) < (b.radius + game.player.radius)) {
                         b.destroy();
-                        player.hp -= 8;
-                        createExplosion(player.mesh.position, 0x00ffff);
+                        game.player.hp -= 8;
+                        createExplosion(game.player.mesh.position, 0x00ffff);
                         updateUI();
-                        if (player.hp <= 0) endGame();
+                        if (game.player.hp <= 0) endGame();
                     }
                 }
             });
 
-            enemies.forEach(e => {
-                if(e.markedForDeletion) return;
-                if(player.mesh.position.distanceTo(e.mesh.position) < (player.radius + e.radius)) {
-                    player.hp -= 20 * dt;
-                    if(player.hp <= 0) endGame();
-                    updateUI();
+            // Player vs Loot
+            for(let loot of game.loot.values()) {
+                if(loot.markedForDeletion) continue;
+                if(game.player.mesh.position.distanceTo(loot.mesh.position) < (game.player.radius + loot.radius)) {
+                    collectLoot(loot.lootType);
+                    // Remove from DB so no one else gets it
+                    const lootRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'gibwars_loot', loot.id);
+                    window.deleteDoc(lootRef);
                 }
-            });
-
-            lootItems.forEach(p => {
-                if(p.markedForDeletion) return;
-                if(player.mesh.position.distanceTo(p.mesh.position) < (player.radius + p.radius)) {
-                    p.destroy();
-                    collectLoot(p.lootType);
-                }
-            });
+            }
 
             game.entities = game.entities.filter(e => !e.markedForDeletion);
         }
@@ -1169,7 +1097,6 @@
         document.getElementById('ammo-shotgun').innerText = game.player.ammo['shotgun'];
     }
 
-    // Attach to window so HTML buttons can call them
     window.startGame = function() {
         if (!startBtn.disabled) {
             menu.classList.add('hidden');
@@ -1187,54 +1114,17 @@
     }
 
     // --- Inputs ---
-    window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-    });
-    window.addEventListener('mousemove', e => {
-        mouseVector.x = (e.clientX / window.innerWidth) * 2 - 1;
-        mouseVector.y = -(e.clientY / window.innerHeight) * 2 + 1;
-    });
-    window.addEventListener('wheel', e => {
-        cameraZoom += e.deltaY * 0.001; 
-        cameraZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, cameraZoom));
-    });
+    window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
+    window.addEventListener('mousemove', e => { mouseVector.x = (e.clientX / window.innerWidth) * 2 - 1; mouseVector.y = -(e.clientY / window.innerHeight) * 2 + 1; });
+    window.addEventListener('wheel', e => { cameraZoom += e.deltaY * 0.001; cameraZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, cameraZoom)); });
     window.addEventListener('contextmenu', e => e.preventDefault());
     window.addEventListener('mousedown', () => mouse.down = true);
     window.addEventListener('mouseup', () => mouse.down = false);
-
-    window.addEventListener('keydown', e => {
-        if(e.code === 'KeyW' || e.code === 'ArrowUp') keys.w = true;
-        if(e.code === 'KeyS' || e.code === 'ArrowDown') keys.s = true;
-        if(e.code === 'KeyA' || e.code === 'ArrowLeft') keys.a = true;
-        if(e.code === 'KeyD' || e.code === 'ArrowRight') keys.d = true;
-
-        if(game.active && game.player) {
-            if(e.code === 'Digit1') game.player.switchWeapon('blaster');
-            if(e.code === 'Digit2') game.player.switchWeapon('rapid');
-            if(e.code === 'Digit3') game.player.switchWeapon('shotgun');
-        }
-    });
-
-    window.addEventListener('keyup', e => {
-        if(e.code === 'KeyW' || e.code === 'ArrowUp') keys.w = false;
-        if(e.code === 'KeyS' || e.code === 'ArrowDown') keys.s = false;
-        if(e.code === 'KeyA' || e.code === 'ArrowLeft') keys.a = false;
-        if(e.code === 'KeyD' || e.code === 'ArrowRight') keys.d = false;
-    });
-
-    // Make game global for HTML events
+    window.addEventListener('keydown', e => { if(e.code === 'KeyW' || e.code === 'ArrowUp') keys.w = true; if(e.code === 'KeyS' || e.code === 'ArrowDown') keys.s = true; if(e.code === 'KeyA' || e.code === 'ArrowLeft') keys.a = true; if(e.code === 'KeyD' || e.code === 'ArrowRight') keys.d = true; if(game.active && game.player) { if(e.code === 'Digit1') game.player.switchWeapon('blaster'); if(e.code === 'Digit2') game.player.switchWeapon('rapid'); if(e.code === 'Digit3') game.player.switchWeapon('shotgun'); } });
+    window.addEventListener('keyup', e => { if(e.code === 'KeyW' || e.code === 'ArrowUp') keys.w = false; if(e.code === 'KeyS' || e.code === 'ArrowDown') keys.s = false; if(e.code === 'KeyA' || e.code === 'ArrowLeft') keys.a = false; if(e.code === 'KeyD' || e.code === 'ArrowRight') keys.d = false; });
     window.game = game;
-
     gameLoop(0);
-
-    window.addEventListener('beforeunload', () => {
-        if (deleteDoc && db && currentUser) {
-             const ref = doc(db, 'artifacts', appId, 'public', 'data', 'gibwars_players', currentUser.uid);
-             deleteDoc(ref);
-        }
-    });
+    window.addEventListener('beforeunload', () => { if (deleteDoc && db && currentUser) { const ref = doc(db, 'artifacts', appId, 'public', 'data', 'gibwars_players', currentUser.uid); deleteDoc(ref); } });
 </script>
 </body>
 </html>
